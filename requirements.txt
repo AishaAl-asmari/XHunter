@@ -1,0 +1,7 @@
+requests
+openai
+Pillow
+matplotlib
+arabic-reshaper
+python-bidi
+reportlab

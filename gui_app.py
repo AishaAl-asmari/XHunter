@@ -32,8 +32,19 @@ def ar(text):
 # =========================
 # API KEYS
 # =========================
-BEARER_TOKEN = "AAAAAAAAAAAAAAAAAAAAABOl9AEAAAAAMblCM0kzJP3w1FlmZ2nQsVsKln8%3DquYdqoRVQXjHcung7E8LRXKSFmAJAi7GrhMgWLQdfeEWy48Van"
-OPENAI_API_KEY = "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"
+# Keys are loaded from environment variables instead of being hardcoded,
+# so this file is safe to publish publicly (e.g. on GitHub) without
+# exposing real credentials. Set these before running the program:
+#
+#   Windows (PowerShell):
+#     setx X_BEARER_TOKEN "your_token_here"
+#     setx OPENAI_API_KEY "your_key_here"
+#
+#   macOS / Linux:
+#     export X_BEARER_TOKEN="your_token_here"
+#     export OPENAI_API_KEY="your_key_here"
+BEARER_TOKEN = os.environ.get("X_BEARER_TOKEN", "")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 
 
 
@@ -189,6 +200,15 @@ RISK_LABELS_EN = {
     "Low": "Low"
 }
 
+CATEGORY_LABELS_EN = {
+    "تهديدات أمنية": "Security Threats",
+    "تهديدات السلامة العامة": "Public Safety Threats",
+    "إشاعات ومعلومات مضللة": "Misinformation & Fake News",
+    "مخاطر السمعة التجارية": "Brand Reputation Risks",
+    "مخاطر سياسية واجتماعية": "Political & Social Risks",
+    "تهديدات سيبرانية": "Cybersecurity Threats"
+}
+
 widget_refs = {}
 
 
@@ -200,6 +220,15 @@ def risk_text(risk):
     if current_language == "ar":
         return RISK_LABELS_AR.get(risk, risk)
     return RISK_LABELS_EN.get(risk, risk)
+
+
+def category_text(category):
+    """Categories are always stored in Arabic (the AI always returns the
+    Arabic label), so this translates them for display when the UI
+    language is set to English."""
+    if current_language == "en":
+        return CATEGORY_LABELS_EN.get(category, category)
+    return category
 
 
 def toggle_language():
@@ -247,8 +276,24 @@ def apply_language():
         elif current_status in ("تم الحفظ", "Saved"):
             status_label.config(text=tr("saved"))
 
-    if feed_empty_label is not None:
-        feed_empty_label.config(text=tr("empty_feed"))
+    # Existing feed rows were drawn with the risk badge text fixed in
+    # whatever language was active at the time, and don't update on
+    # their own. Re-render every stored post (and the empty-state message,
+    # if needed) so the whole feed matches the newly selected language.
+    global feed_empty_label
+
+    for widget in feed_frame.winfo_children():
+        widget.destroy()
+    feed_empty_label = None
+
+    if post_registry:
+        for post in post_registry.values():
+            if post["risk"] != "Low":
+                add_feed_row(post)
+        if len(feed_frame.winfo_children()) == 0:
+            show_empty_feed_message()
+    else:
+        show_empty_feed_message()
 
     update_dashboard()
 
@@ -467,7 +512,7 @@ def update_pie_chart():
 
     for category, count in category_counts.items():
         if count > 0:
-            labels.append(category)
+            labels.append(category_text(category))
             values.append(count)
             colors.append(category_colors.get(category, "#5BC8E8"))
 
@@ -631,7 +676,7 @@ def open_detail_popup(post):
 
     tk.Label(
         popup,
-        text=f"👤 @{post['username']}  ·  {category_icons.get(post['category'], '⚠️')} {post['category']}",
+        text=f"👤 @{post['username']}  ·  {category_icons.get(post['category'], '⚠️')} {category_text(post['category'])}",
         bg="#15213A",
         fg=category_colors.get(post["category"], "#5BC8E8"),
         font=("Segoe UI", 9, "bold")
@@ -709,7 +754,7 @@ def add_feed_row(post):
 
     tk.Label(
         meta_row,
-        text=f"👤 @{post['username']}  ·  {category_icons.get(post['category'], '⚠️')} {post['category']}",
+        text=f"👤 @{post['username']}  ·  {category_icons.get(post['category'], '⚠️')} {category_text(post['category'])}",
         bg="#15213A",
         fg=category_colors.get(post["category"], "#5BC8E8"),
         font=("Segoe UI", 8, "bold"),
